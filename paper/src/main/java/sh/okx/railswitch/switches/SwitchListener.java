@@ -1,11 +1,17 @@
 package sh.okx.railswitch.switches;
 
 import com.google.common.base.Strings;
+
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.Lectern;
 import org.bukkit.block.Sign;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
@@ -14,6 +20,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockRedstoneEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.BookMeta;
 import sh.okx.railswitch.RailSwitchPlugin;
 import sh.okx.railswitch.glue.CitadelGlue;
 import sh.okx.railswitch.settings.SettingsManager;
@@ -44,21 +52,91 @@ public class SwitchListener implements Listener {
                 || event.getNewCurrent() != 15) {
             return;
         }
-        // Check that the block above the rail is a sign
-        Block above = block.getRelative(BlockFace.UP);
-        if (!Tag.SIGNS.isTagged(above.getType())
-                || !(above.getState() instanceof Sign)) {
+
+        Player player = this.getPlayerInMinecartAt(block);
+        if(player == null){
             return;
         }
-        // Check that the sign has a valid switch type
-        String[] lines = ((Sign) above.getState()).getLines();
-        SwitchType type = SwitchType.find(lines[0]);
-        if (type == null) {
-            return;
+
+        for(BlockFace face : WorldUtils.ALL_SIDES){
+            int dist = face == BlockFace.DOWN ? 2 : 1;
+            Block checkBlock = block.getRelative(face, dist);
+
+            // If Citadel is enabled, check that the sign and the rail are on the same group
+            if (CITADEL_GLUE.isSafeToUse()) {
+                if (!CITADEL_GLUE.doSignAndRailHaveSameReinforcement(checkBlock, block)) {
+                    continue;
+                }
+            }
+
+            if(Tag.SIGNS.isTagged(checkBlock.getType())){
+                Sign sign = (Sign) checkBlock.getState();
+                List<String> lines = List.of(sign.getLines());
+                if(lines == null || lines.size() == 0){
+                    return;
+                }
+
+                SwitchType type = SwitchType.find(lines.remove(0));
+                if (type == null) {
+                    continue;
+                }
+
+                event.setNewCurrent(type == SwitchType.NORMAL ?
+                        (this.hasDestination(lines.toArray(new String[0]), player) ? 15 : 0) :
+                        (this.hasDestination(lines.toArray(new String[0]), player) ? 0 : 15));
+                return;
+            }else if(checkBlock.getType() == Material.LECTERN){
+                Lectern lectern = (Lectern) checkBlock.getState();
+                ItemStack item = lectern.getInventory().getItem(0);
+                if(item == null || (item.getType() != Material.WRITTEN_BOOK && item.getType() != Material.WRITABLE_BOOK)){
+                    RailSwitchPlugin.getInstance(RailSwitchPlugin.class).info("Failed to get book from lectern");
+                    continue;
+                }
+
+                BookMeta bookMeta = (BookMeta) item.getItemMeta();
+                List<String> text = new ArrayList<>();
+                bookMeta.getPages().stream().map(page -> page.split("\n"))
+                        .forEach(page -> text.addAll(List.of(page)));
+
+                if(text.size() == 0){
+                    RailSwitchPlugin.getInstance(RailSwitchPlugin.class).info("Failed to find any text in book");
+                    continue;
+                }
+
+                String destType = text.remove(0);
+
+                SwitchType type = SwitchType.find(destType);
+                if (type == null) {
+                    RailSwitchPlugin.getInstance(RailSwitchPlugin.class).info("Failed to get switch type for " + destType);
+                    continue;
+                }
+
+                String[] lines = text.toArray(new String[0]);
+
+                StringBuilder sb = new StringBuilder();
+                text.stream().forEach(s -> sb.append(s).append(","));
+                sb.deleteCharAt(sb.length()-1);
+
+                RailSwitchPlugin.getInstance(RailSwitchPlugin.class).info("Lectern destinations: " + sb);
+
+                boolean hasDest = this.hasDestination(lines, player);
+
+                if(!hasDest){
+                    RailSwitchPlugin.getInstance(RailSwitchPlugin.class).info("Failed to get dest for lectern: " + player.getName());
+                }
+
+                event.setNewCurrent(type == SwitchType.NORMAL ?
+                        (hasDest ? 15 : 0) :
+                        (hasDest ? 0 : 15));
+                return;
+            }
         }
-        // Check that a player is triggering the switch
-        // NOTE: The event doesn't provide the information and so the next best thing is searching for a
-        //       player who is nearby and riding a minecart.
+    }
+
+    // Check that a player is triggering the switch
+    // NOTE: The event doesn't provide the information and so the next best thing is searching for a
+    //       player who is nearby and riding a minecart.
+    private Player getPlayerInMinecartAt(Block block){
         Player player = null; {
             double searchDistance = Double.MAX_VALUE;
             for (Entity entity : block.getWorld().getNearbyEntities(block.getLocation(), 3, 3, 3)) {
@@ -79,22 +157,20 @@ public class SwitchListener implements Listener {
                 }
             }
         }
-        if (player == null) {
-            return;
-        }
-        // If Citadel is enabled, check that the sign and the rail are on the same group
-        if (CITADEL_GLUE.isSafeToUse()) {
-            if (!CITADEL_GLUE.doSignAndRailHaveSameReinforcement(above, block)) {
-                return;
-            }
-        }
-        // Determine whether a player has a destination that matches one of the destinations
-        // listed on the switch signs, or match if there's a wildcard.
+
+        return player;
+    }
+
+    // Determine whether a player has a destination that matches one of the destinations
+    // listed on the switch signs, or match if there's a wildcard.
+    private boolean hasDestination(String[] lines, Player player){
         boolean matched = false;
         String setDest = SettingsManager.getDestination(player);
         if (!Strings.isNullOrEmpty(setDest)) {
             String[] playerDestinations = setDest.split(" ");
-            String[] switchDestinations = Arrays.copyOfRange(lines, 1, lines.length);
+            //String[] switchDestinations = Arrays.copyOfRange(lines, 0, lines.length);
+            String[] switchDestinations = Arrays.copyOf(lines, lines.length);
+
             matcher:
             for (String playerDestination : playerDestinations) {
                 if (Strings.isNullOrEmpty(playerDestination)) {
@@ -116,14 +192,8 @@ public class SwitchListener implements Listener {
                 }
             }
         }
-        switch (type) {
-            case NORMAL:
-                event.setNewCurrent(matched ? 15 : 0);
-                break;
-            case INVERTED:
-                event.setNewCurrent(matched ? 0 : 15);
-                break;
-        }
+
+        return matched;
     }
 
 }
