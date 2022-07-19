@@ -99,7 +99,6 @@ public class SwitchListener implements Listener {
                         .forEach(page -> text.addAll(List.of(page)));
 
                 if(text.size() == 0){
-                    RailSwitchPlugin.getInstance(RailSwitchPlugin.class).info("Failed to find any text in book");
                     continue;
                 }
 
@@ -107,23 +106,11 @@ public class SwitchListener implements Listener {
 
                 SwitchType type = SwitchType.find(destType);
                 if (type == null) {
-                    RailSwitchPlugin.getInstance(RailSwitchPlugin.class).info("Failed to get switch type for " + destType);
                     continue;
                 }
 
                 String[] lines = text.toArray(new String[0]);
-
-                StringBuilder sb = new StringBuilder();
-                text.stream().forEach(s -> sb.append(s).append(","));
-                sb.deleteCharAt(sb.length()-1);
-
-                RailSwitchPlugin.getInstance(RailSwitchPlugin.class).info("Lectern destinations: " + sb);
-
                 boolean hasDest = this.hasDestination(lines, player);
-
-                if(!hasDest){
-                    RailSwitchPlugin.getInstance(RailSwitchPlugin.class).info("Failed to get dest for lectern: " + player.getName());
-                }
 
                 event.setNewCurrent(type == SwitchType.NORMAL ?
                         (hasDest ? 15 : 0) :
@@ -168,7 +155,6 @@ public class SwitchListener implements Listener {
         String setDest = SettingsManager.getDestination(player);
         if (!Strings.isNullOrEmpty(setDest)) {
             String[] playerDestinations = setDest.split(" ");
-            //String[] switchDestinations = Arrays.copyOfRange(lines, 0, lines.length);
             String[] switchDestinations = Arrays.copyOf(lines, lines.length);
 
             matcher:
