@@ -13,13 +13,9 @@ You may also use `[!destination]`, which will activate the rail if a player's de
 
 ### Usage
 
-1. Type `/dest <destination>`
-2. Go AFK
-3. Arrive
-
-You can also use spaces in a `/dest` command as an "or" operator, like `/dest <destination1> <destination2>`. In this command, RailSwitch will route players towards signs that contain either `<destination1>` or `<destination2>`. 
-
-Another way to think about it is that `/dest` takes multiple arguments. Each argument is a destination that will be checked as you pass a sign.
+1. Create a sign with '[destination]' on the first line and your destination on the second line.
+2. Place a button above or below the sign.
+3. Press the button to select that destination.
 
 ### Example Video
 
