@@ -5,10 +5,10 @@ import com.google.common.base.Strings;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.Tag;
+import com.google.common.collect.ImmutableSet;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.Lectern;
@@ -19,23 +19,104 @@ import org.bukkit.entity.Minecart;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockRedstoneEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BookMeta;
 import sh.okx.railswitch.RailSwitchPlugin;
-import sh.okx.railswitch.glue.CitadelGlue;
-import sh.okx.railswitch.settings.SettingsManager;
-import vg.civcraft.mc.civmodcore.world.WorldUtils;
+
 
 /**
  * Switch listener that implements switch functionality.
  */
 public class SwitchListener implements Listener {
 
+    private RailSwitchPlugin plugin;
+
+    public SwitchListener(RailSwitchPlugin pl) {
+        this.plugin = pl;
+    }
     public static final String WILDCARD = "*";
 
-    public static final CitadelGlue CITADEL_GLUE = new CitadelGlue(RailSwitchPlugin.getPlugin(RailSwitchPlugin.class));
+    private class WorldUtils {
+        public static final Set<BlockFace> ALL_SIDES = ImmutableSet.of(
+                BlockFace.UP,
+                BlockFace.DOWN,
+                BlockFace.NORTH,
+                BlockFace.EAST,
+                BlockFace.SOUTH,
+                BlockFace.WEST);
 
+        /**
+         * <p>Checks whether this block is valid and so can be handled reasonably without error.</p>
+         *
+         * <p>Note: This will return true even if the block is air. Use MaterialUtils.isAir(Material) as an
+         * additional check if this is important to you.</p>
+         *
+         * @param block The block to check.
+         * @return Returns true if the block is valid.
+         */
+        public static boolean isValidBlock(final Block block) {
+            if (block == null) {
+                return false;
+            }
+            if (block.getType() == null) { // Do not remove this, it's not necessarily certain
+                return false;
+            }
+            return isValidLocation(block.getLocation());
+        }
+
+        /**
+         * Determines whether a location is valid and safe to use.
+         *
+         * @param location The location to check.
+         * @return Returns true if the location exists, is valid, and safe to use.
+         */
+        public static boolean isValidLocation(final Location location) {
+            if (location == null) {
+                return false;
+            }
+            if (!location.isWorldLoaded()) {
+                return false;
+            }
+            return true;
+        }
+    }
+
+    private boolean isButton(Material m) {
+        return Tag.BUTTONS.isTagged(m);
+    }
+    private boolean isDestSign(Block b) {
+        Sign sign = (Sign) b.getState();
+        List<String> lines = new ArrayList<>(List.of(sign.getLines()));
+        if(lines.size() <= 1){
+            return false;
+        }
+
+        SwitchType type = SwitchType.find(lines.remove(0));
+        return type == SwitchType.NORMAL;
+    }
+    private void setDestFrom(Player p, Block b) {
+        Sign sign = (Sign) b.getState();
+        String s = sign.getLines()[1];
+        if (s.length() == 0) return;
+        plugin.setDestination(p, s);
+        p.sendMessage(ChatColor.GREEN + "[RailSwitch] Destination set to '" + ChatColor.YELLOW + s + ChatColor.GREEN +  "'.");
+    }
+    @EventHandler
+    public void onPressButton(PlayerInteractEvent event) {
+        if (event.getAction() == Action.RIGHT_CLICK_BLOCK && isButton(event.getClickedBlock().getType())) {
+            Block upBlock = event.getClickedBlock().getRelative(BlockFace.UP);
+            Block downBlock = event.getClickedBlock().getRelative(BlockFace.UP);
+            if (Tag.SIGNS.isTagged(upBlock.getType()) && isDestSign(upBlock)) {
+                setDestFrom(event.getPlayer(), upBlock);
+            }
+            else if (Tag.SIGNS.isTagged(downBlock.getType()) && isDestSign(downBlock)) {
+                setDestFrom(event.getPlayer(), downBlock);
+            }
+        }
+    }
     /**
      * Event handler for rail switches. Will determine if a switch exists at the target location, and if so will process
      * it accordingly, allowing it to trigger or not trigger depending on the rider's set destination, the listed
@@ -62,16 +143,10 @@ public class SwitchListener implements Listener {
             int dist = face == BlockFace.DOWN ? 2 : 1;
             Block checkBlock = block.getRelative(face, dist);
 
-            // If Citadel is enabled, check that the sign and the rail are on the same group
-            if (CITADEL_GLUE.isSafeToUse()) {
-                if (!CITADEL_GLUE.doSignAndRailHaveSameReinforcement(checkBlock, block)) {
-                    continue;
-                }
-            }
 
             if(Tag.SIGNS.isTagged(checkBlock.getType())){
                 Sign sign = (Sign) checkBlock.getState();
-                List<String> lines = List.of(sign.getLines());
+                List<String> lines = new ArrayList<>(List.of(sign.getLines()));
                 if(lines == null || lines.size() == 0){
                     return;
                 }
@@ -89,7 +164,7 @@ public class SwitchListener implements Listener {
                 Lectern lectern = (Lectern) checkBlock.getState();
                 ItemStack item = lectern.getInventory().getItem(0);
                 if(item == null || (item.getType() != Material.WRITTEN_BOOK && item.getType() != Material.WRITABLE_BOOK)){
-                    RailSwitchPlugin.getInstance(RailSwitchPlugin.class).info("Failed to get book from lectern");
+                    Bukkit.getLogger().info("Failed to get book from lectern");
                     continue;
                 }
 
@@ -131,7 +206,7 @@ public class SwitchListener implements Listener {
                     continue;
                 }
                 Entity vehicle = entity.getVehicle();
-                // TODO: This should be abstracted into CivModCore
+
                 if (vehicle == null
                         || vehicle.getType() != EntityType.MINECART
                         || !(vehicle instanceof Minecart)) {
@@ -152,7 +227,7 @@ public class SwitchListener implements Listener {
     // listed on the switch signs, or match if there's a wildcard.
     private boolean hasDestination(String[] lines, Player player){
         boolean matched = false;
-        String setDest = SettingsManager.getDestination(player);
+        String setDest = plugin.getDestination(player);
         if (!Strings.isNullOrEmpty(setDest)) {
             String[] playerDestinations = setDest.split(" ");
             String[] switchDestinations = Arrays.copyOf(lines, lines.length);

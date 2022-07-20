@@ -1,39 +1,40 @@
 package sh.okx.railswitch;
 
+import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
-import sh.okx.railswitch.commands.DestinationCommand;
-import sh.okx.railswitch.glue.CitadelGlue;
-import sh.okx.railswitch.settings.SettingsManager;
+import org.bukkit.plugin.java.JavaPlugin;
 import sh.okx.railswitch.switches.SwitchListener;
-import vg.civcraft.mc.civmodcore.ACivMod;
-import vg.civcraft.mc.civmodcore.commands.CommandManager;
+
+import java.util.HashMap;
+import java.util.UUID;
 
 /**
  * The Rail Switch plugin class
  */
-public final class RailSwitchPlugin extends ACivMod implements Listener {
+public final class RailSwitchPlugin extends JavaPlugin implements Listener {
 
-    private CommandManager commandManager;
+    private HashMap<UUID, String> destinations;
+
+    public void setDestination(Player p, String dest) {
+        destinations.put(p.getUniqueId(), dest);
+    }
+
+    public String getDestination(Player p) {
+        return destinations.get(p.getUniqueId());
+    }
 
     @Override
     public void onEnable() {
         super.onEnable();
-        SettingsManager.init(this);
-        registerListener(new CitadelGlue(this));
-        registerListener(new SwitchListener());
-        commandManager = new CommandManager(this);
-        commandManager.init();
-        commandManager.registerCommand(new DestinationCommand());
+        destinations = new HashMap<>();
+        this.getServer().getPluginManager().registerEvents(new SwitchListener(this), this);
+        this.getLogger().info("RailSwitch is now enabled!");
     }
 
     @Override
     public void onDisable() {
-        SettingsManager.reset();
-        if (commandManager != null) {
-            commandManager.reset();
-            commandManager = null;
-        }
         super.onDisable();
+        this.getLogger().info("RailSwitch is now disabled.");
     }
 
 }
