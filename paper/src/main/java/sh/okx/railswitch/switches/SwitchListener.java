@@ -108,7 +108,7 @@ public class SwitchListener implements Listener {
     public void onPressButton(PlayerInteractEvent event) {
         if (event.getAction() == Action.RIGHT_CLICK_BLOCK && isButton(event.getClickedBlock().getType())) {
             Block upBlock = event.getClickedBlock().getRelative(BlockFace.UP);
-            Block downBlock = event.getClickedBlock().getRelative(BlockFace.UP);
+            Block downBlock = event.getClickedBlock().getRelative(BlockFace.DOWN);
             if (Tag.SIGNS.isTagged(upBlock.getType()) && isDestSign(upBlock)) {
                 setDestFrom(event.getPlayer(), upBlock);
             }
