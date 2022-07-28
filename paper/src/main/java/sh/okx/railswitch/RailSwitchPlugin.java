@@ -86,9 +86,9 @@ public final class RailSwitchPlugin extends JavaPlugin implements Listener {
         this.getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
         this.getCommand("dest").setExecutor(new SetDestinationCommand(this));
         this.getCommand("dest").setTabCompleter(new DestTabCompleter(this));
-        this.getCommand("addDest").setExecutor(new AddDestinationCommand(this));
-        this.getCommand("delDest").setExecutor(new RemoveDestinationCommand(this));
-        this.getCommand("delDest").setTabCompleter(new DestTabCompleter(this));
+        this.getCommand("destadd").setExecutor(new AddDestinationCommand(this));
+        this.getCommand("destdel").setExecutor(new RemoveDestinationCommand(this));
+        this.getCommand("destdel").setTabCompleter(new DestTabCompleter(this));
         this.createCustomConfig();
         Bukkit.addRecipe(new CraftableRailBook().getRecipe());
         this.getLogger().info("RailSwitch is now enabled!");

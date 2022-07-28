@@ -6,5 +6,5 @@ authors: [Okx, Protonull]
 description: Easily make rail switches for automated destination selection
 commands:
   dest: {}
-  addDest: {}
-  delDest: {}
+  destadd: {}
+  destdel: {}
