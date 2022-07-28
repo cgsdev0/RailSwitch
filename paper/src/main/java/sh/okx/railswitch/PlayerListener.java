@@ -39,7 +39,16 @@ public class PlayerListener implements Listener {
         book.setPages();
         TextComponent.Builder builder = Component.text()
                 .append(Component.text("DESTINATIONS\n------------\n"));
+
+        int i = 0;
         for (String dest : plugin.listAllDestinations()) {
+            if (++i >= 12) {
+                builder.append(Component.text("continued ->", NamedTextColor.GRAY));
+                book.addPages(builder.build());
+                builder = Component.text()
+                        .append(Component.text("DESTINATIONS\n------------\n"));
+                i = 0;
+            }
             builder.append(Component.text(" - "), Component.text(dest, NamedTextColor.DARK_GREEN).decoration(TextDecoration.UNDERLINED, true).hoverEvent(HoverEvent.showText(Component.text().append(Component.text().content("Click to set destination").build()))).clickEvent(ClickEvent.runCommand("/dest " + dest)), Component.newline());
         }
         book.addPages(builder.build());

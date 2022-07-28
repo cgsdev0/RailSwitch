@@ -65,9 +65,9 @@ public final class RailSwitchPlugin extends JavaPlugin implements Listener {
     }
 
     public boolean isValidDestination(String message) {
-        // Each destination must be fewer than 40 characters.
+        // Each destination must be fewer than 19 characters.
         for (String dest : message.split(" ")) {
-            if (dest.length() > 40) {
+            if (dest.length() > 19) {
                 return false;
             }
         }
