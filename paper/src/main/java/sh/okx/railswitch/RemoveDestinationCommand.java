@@ -22,11 +22,12 @@ public class RemoveDestinationCommand implements CommandExecutor {
 
         Player player = (Player) sender;
         if (args.length != 1) {
-            return false;
+            player.sendMessage(ChatColor.RED + "Usage: /destdel [destination_name]");
+            return true;
         }
 
         if (!plugin.isValidDestination(args[0])) {
-            player.sendMessage(ChatColor.RED + "Destinations can each not be more than 40 characters and may only use alphanumerical characters, ASCII symbols, and spaces.");
+            player.sendMessage(ChatColor.RED + "Destinations can each not be more than 15 characters and may only use alphanumerical characters and underscores.");
             return true;
         }
 

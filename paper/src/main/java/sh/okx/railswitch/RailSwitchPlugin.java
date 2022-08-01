@@ -1,7 +1,8 @@
 package sh.okx.railswitch;
 
 import org.bukkit.Bukkit;
-import org.bukkit.configuration.InvalidConfigurationException;
+import org.bukkit.Location;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -13,8 +14,8 @@ import com.google.common.base.CharMatcher;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -23,7 +24,8 @@ import java.util.UUID;
 public final class RailSwitchPlugin extends JavaPlugin implements Listener {
 
     private HashMap<UUID, String> playerDestinations;
-    private HashSet<String> allDestinations;
+    private Map<String, Object> allDestinations;
+    private HashMap<Location, String> allBanners;
     private File customConfigFile;
     private FileConfiguration customConfig;
 
@@ -33,21 +35,44 @@ public final class RailSwitchPlugin extends JavaPlugin implements Listener {
     }
 
     public void addDestination(String dest) {
-        allDestinations.add(dest);
+        allDestinations.put(dest, new Location(null, 0, 0, 0));
         writeAllDestinations();
     }
 
+    public void updateDestination(String dest, Location loc) {
+        if (loc == null) {
+          allBanners.remove(allDestinations.get(dest));
+          allDestinations.put(dest, new Location(null, 0,0,0));
+        }
+        else {
+          allBanners.put(loc, dest);
+          allDestinations.put(dest, loc);
+        }
+        writeAllDestinations();
+    }
+
+    public void removeBanner(Location loc) {
+        if (!allBanners.containsKey(loc)) {
+          return;
+        }
+        updateDestination(allBanners.get(loc), null);
+    }
+
     public boolean hasDestination(String dest) {
-        return allDestinations.contains(dest);
+        return allDestinations.containsKey(dest);
     }
 
     public void removeDestination(String dest) {
+        Object loc = allDestinations.get(dest);
+        if (loc != null && loc instanceof Location) {
+          allBanners.remove(loc);
+        }
         allDestinations.remove(dest);
         writeAllDestinations();
     }
 
     private void writeAllDestinations() {
-        customConfig.set("destinations", allDestinations.stream().toList());
+        customConfig.createSection("destinations", allDestinations);
         try {
             customConfig.save(customConfigFile);
         }
@@ -56,8 +81,19 @@ public final class RailSwitchPlugin extends JavaPlugin implements Listener {
         }
     }
 
+    public List<String> listNearbyDestinations(Location origin, double dist) {
+      return allDestinations.keySet().stream().filter(k -> {
+        Object o = allDestinations.get(k);
+        if(!(o instanceof Location)) return false;
+        Location l = (Location)o;
+        if (l.getWorld() == null) return false;
+        if (!l.getWorld().equals(origin.getWorld())) return false;
+        if (l.distance(origin) > dist) return false;
+        return true;
+      }).toList();
+    }
     public List<String> listAllDestinations() {
-        return allDestinations.stream().sorted().toList();
+        return allDestinations.keySet().stream().sorted().toList();
     }
 
     public String getDestination(Player p) {
@@ -65,9 +101,9 @@ public final class RailSwitchPlugin extends JavaPlugin implements Listener {
     }
 
     public boolean isValidDestination(String message) {
-        // Each destination must be fewer than 19 characters.
+        // Each destination must be at most 15 characters.
         for (String dest : message.split(" ")) {
-            if (dest.length() > 19) {
+            if (dest.length() > 15) {
                 return false;
             }
         }
@@ -75,7 +111,7 @@ public final class RailSwitchPlugin extends JavaPlugin implements Listener {
         return CharMatcher.inRange('0', '9')
                 .or(CharMatcher.inRange('a', 'z'))
                 .or(CharMatcher.inRange('A', 'Z'))
-                .or(CharMatcher.anyOf("!\"#$%&'()*+,-./;:<=>?@[]\\^_`{|}~ ")).matchesAllOf(message);
+                .or(CharMatcher.is('_')).matchesAllOf(message);
     }
 
     @Override
@@ -89,6 +125,8 @@ public final class RailSwitchPlugin extends JavaPlugin implements Listener {
         this.getCommand("destadd").setExecutor(new AddDestinationCommand(this));
         this.getCommand("destdel").setExecutor(new RemoveDestinationCommand(this));
         this.getCommand("destdel").setTabCompleter(new DestTabCompleter(this));
+        this.getCommand("destbanner").setExecutor(new DestinationBannerCommand(this));
+        this.getCommand("destbanner").setTabCompleter(new DestTabCompleter(this));
         this.createCustomConfig();
         Bukkit.addRecipe(new CraftableRailBook().getRecipe());
         this.getLogger().info("RailSwitch is now enabled!");
@@ -113,7 +151,21 @@ public final class RailSwitchPlugin extends JavaPlugin implements Listener {
         }
 
         customConfig = YamlConfiguration.loadConfiguration(customConfigFile);
-        allDestinations = new HashSet<String>(customConfig.getStringList("destinations"));
+        ConfigurationSection section = customConfig.getConfigurationSection("destinations");
+        if (section == null) {
+          allDestinations = new HashMap<String, Object>();
+        }
+        else {
+          allDestinations = section.getValues(false);
+        }
+        allBanners = new HashMap<Location, String>();
+        // Re-hydrate banner map
+        for(String key : allDestinations.keySet()) {
+          Object o = allDestinations.get(key);
+          if (o != null && o instanceof Location && ((Location)o).getWorld() != null) {
+            allBanners.put((Location)o, key);
+          }
+        }
     }
 }
 
