@@ -75,6 +75,23 @@ public class PlayerListener implements Listener {
             builder.append(Component.text(" - "), Component.text(dest, color).decoration(TextDecoration.UNDERLINED, true).hoverEvent(HoverEvent.showText(Component.text().append(Component.text().content("Click to set destination").build()))).clickEvent(ClickEvent.runCommand("/dest " + dest)), Component.newline());
         }
         book.addPages(builder.build());
+
+        builder = Component.text()
+                .append(Component.text("Building Guide\n----------------\n\n"));
+        builder.append(Component.text("Modifiers:\n"));
+        builder.append(Component.text("- ")
+            .append(Component.text("Gold", NamedTextColor.GOLD))
+            .append(Component.text(": Speed boost\n")));
+        builder.append(Component.text("- ")
+            .append(Component.text("Copper", NamedTextColor.GREEN))
+            .append(Component.text(": Slowdown\n")));
+        builder.append(Component.text("- ")
+            .append(Component.text("Lapis", NamedTextColor.BLUE))
+            .append(Component.text(": Minor boost\n")));
+        builder.append(Component.text("- ")
+            .append(Component.text("Netherite", NamedTextColor.DARK_GRAY))
+            .append(Component.text(": boost+fly\n")));
+        book.addPages(builder.build());
         return book;
     }
 
