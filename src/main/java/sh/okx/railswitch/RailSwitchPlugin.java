@@ -7,7 +7,11 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
+import org.bukkit.plugin.Plugin;
+import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.dynmap.DynmapCommonAPI;
+
 import sh.okx.railswitch.switches.SwitchListener;
 import com.google.common.base.CharMatcher;
 
@@ -28,7 +32,12 @@ public final class RailSwitchPlugin extends JavaPlugin implements Listener {
     private HashMap<Location, String> allBanners;
     private File customConfigFile;
     private FileConfiguration customConfig;
+    private DynmapCommonAPI dynmap;
 
+
+    public DynmapCommonAPI getDynmapAPI() {
+      return dynmap;
+    }
 
     public void setDestination(Player p, String dest) {
         playerDestinations.put(p.getUniqueId(), dest);
@@ -130,6 +139,13 @@ public final class RailSwitchPlugin extends JavaPlugin implements Listener {
         this.createCustomConfig();
         Bukkit.addRecipe(new CraftableRailBook().getRecipe());
         this.getLogger().info("RailSwitch is now enabled!");
+        PluginManager pm = getServer().getPluginManager();
+        /* Get dynmap */
+        Plugin dynmapPl = pm.getPlugin("dynmap");
+        if (dynmapPl == null) {
+          return;
+        }
+        dynmap = (DynmapCommonAPI) dynmapPl; /* Get API */
     }
 
     @Override

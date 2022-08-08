@@ -7,17 +7,26 @@ import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.md_5.bungee.api.chat.ComponentBuilder;
-import net.minecraft.network.chat.BaseComponent;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Tag;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.Lectern;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.Minecart;
+import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -25,21 +34,193 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.vehicle.VehicleEnterEvent;
+import org.bukkit.event.vehicle.VehicleExitEvent;
+import org.bukkit.event.vehicle.VehicleMoveEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BookMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.util.Vector;
+import com.eatthepath.jvptree.*;
 
 public class PlayerListener implements Listener {
+  public class LocationDistFunc implements DistanceFunction<Location> {
+    public double getDistance(final Location firstPoint, final Location secondPoint) {
+      return firstPoint.distance(secondPoint);
+    }
+}
+    private class RiderState {
 
+      public enum Heading {
+        NONE,
+        MOVING_EAST,
+        MOVING_WEST,
+        MOVING_NORTH,
+        MOVING_SOUTH
+      }
+
+      public Heading current;
+      public Heading pending;
+      public long changedAt;
+      public Location changedAtLoc;
+      public Intersection nearestIntersection;
+
+      public void reset() {
+        current = Heading.NONE;
+        pending = Heading.NONE;
+        changedAt = 0;
+        nearestIntersection = null;
+      }
+      public RiderState() {
+        this.reset();
+      }
+
+      public void updateHeading(Heading heading, Location l) {
+        if (pending != heading) {
+          changedAt = System.currentTimeMillis();
+          Bukkit.getConsoleSender().sendMessage(ChatColor.RED + "DETECTED TURN TO " + heading.toString() + " FROM " + pending.toString());
+          pending = heading;
+          changedAtLoc = l;
+          List<Intersection> nearby = vpTree.getNearestNeighbors(l, 1);
+          if (nearby != null && nearby.size() > 0 && nearby.get(0).distance(l) < 10) {
+            if (nearestIntersection != null && !nearestIntersection.equals(nearby.get(0))) {
+              makeConnection(nearestIntersection.uuid, nearby.get(0).uuid);
+            }
+            nearestIntersection = nearby.get(0);
+          }
+        }
+      }
+
+      public boolean shouldApply() {
+        return current != pending && System.currentTimeMillis() - changedAt > 1000;
+      }
+
+      public Location apply() {
+        current = pending;
+        return changedAtLoc;
+      }
+    public static Heading velocityToRiderState(Vector v) {
+      if (v.lengthSquared() <= 0.1) return Heading.NONE;
+      if (Math.abs(v.getX()) > Math.abs(v.getZ())) {
+        if (v.getX() > 0) {
+
+          return Heading.MOVING_EAST;
+        }
+        return Heading.MOVING_WEST;
+      }
+      else {
+        if (v.getZ() > 0) {
+          return Heading.MOVING_SOUTH;
+        }
+        return Heading.MOVING_NORTH;
+      }
+    }
+
+    }
+
+
+    Map<UUID, Map<UUID, String>> connections = new HashMap<>();
+
+    private void makeConnection(UUID from, UUID to) {
+      // Deterministic ordering
+      if (from.compareTo(to) < 0) {
+        UUID temp = from;
+        from = to;
+        to = temp;
+      }
+      Map<UUID, String> connectedFrom = connections.get(from);
+      if (connectedFrom == null) {
+        connectedFrom = new HashMap<UUID, String>();
+        connections.put(from, connectedFrom);
+      }
+      if (!connectedFrom.containsKey(to)) {
+        connectedFrom.put(to, "default");
+        Bukkit.getConsoleSender().sendMessage(ChatColor.AQUA + "NEW CONN FROM " + from.toString() + " to " + to.toString());
+      }
+      else {
+        Bukkit.getConsoleSender().sendMessage(ChatColor.DARK_RED + "conn already exists");
+      }
+    }
     private RailSwitchPlugin plugin;
 
     public PlayerListener(RailSwitchPlugin pl) {
         this.plugin = pl;
     }
 
+    Map<UUID, RiderState> riderStates = new HashMap<>();
+
+    private class Intersection extends Location {
+      public UUID uuid = UUID.randomUUID(); 
+      public Intersection() {
+        super(null, 0, 0, 0);
+      }
+
+      public Intersection(Location l) {
+        super(l.getWorld(), l.getX(), l.getY(), l.getZ());
+      }
+    };
+private VPTree<Location, Intersection> vpTree =
+        new VPTree<Location, Intersection>(new LocationDistFunc());
+    private void addIntersection(Location loc) {
+      List<Intersection> nearby = vpTree.getNearestNeighbors(loc, 1);
+      if (nearby == null || nearby.size() == 0 || nearby.get(0).distance(loc) > 10) {
+        Bukkit.getConsoleSender().sendMessage(ChatColor.GREEN + "DETECTED NEW INTERSECTION AT: " + loc.toString());
+        vpTree.add(new Intersection(loc));
+      } else {
+        Bukkit.getConsoleSender().sendMessage(ChatColor.GOLD + "DETECTED EXISTING INTERSECTION AT: " + nearby.get(0).toString());
+      }
+    }
+
+    @EventHandler
+    public void onVehicleExit(VehicleExitEvent e) {
+      if (!(e.getExited() instanceof Player)) return;
+      Player player = (Player)e.getExited();
+      RiderState state = riderStates.get(player.getUniqueId());
+      if(state == null) return;
+      state.reset();
+    }
+    @EventHandler
+    public void onVehicleEnter(VehicleEnterEvent e) {
+      if (!(e.getEntered() instanceof Player)) return;
+      Player player = (Player)e.getEntered();
+      RiderState state = riderStates.get(player.getUniqueId());
+      if(state == null) return;
+      state.reset();
+    }
+
+    @EventHandler
+    public void onVehicleMove(VehicleMoveEvent e) {
+      List<Entity> passengers = e.getVehicle().getPassengers();
+      if (!(e.getVehicle() instanceof Minecart)) return;
+      if (passengers.size() == 0) return;
+      Entity passenger = passengers.get(0);
+      if (!(passenger instanceof Player)) return;
+      Player player = (Player)passenger;
+      RiderState state = riderStates.get(player.getUniqueId());
+      if (state == null) {
+        state = new RiderState();
+        riderStates.put(player.getUniqueId(), state);
+      }
+      RiderState.Heading fromVel = RiderState.velocityToRiderState(e.getVehicle().getVelocity());
+
+      // Short circuit if we're going straight
+      if (fromVel == state.current && fromVel == state.pending) return;
+
+      state.updateHeading(fromVel, e.getVehicle().getLocation().subtract(e.getVehicle().getVelocity().multiply(3) ));
+
+      // Debounce turns
+      if (state.shouldApply()) {
+        boolean isIntersection = state.current != RiderState.Heading.NONE && state.pending != RiderState.Heading.NONE;
+        Location appliedAt = state.apply();
+        if (isIntersection) {
+          // This is probably an intersection!
+          addIntersection(appliedAt);
+        }
+      }
+    }
     public BookMeta updateBookMeta(BookMeta book, Location loc, String playerDest) {
         HashSet<String> dests = playerDest == null ? new HashSet<String>() : new HashSet<String>(Arrays.asList(playerDest.split(" ")));
         book.setTitle("Railway Guide");
