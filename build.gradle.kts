@@ -2,6 +2,7 @@ plugins {
     `java-library`
     id("io.papermc.paperweight.userdev") version "1.3.8"
     id("net.minecrell.plugin-yml.bukkit") version "0.5.2" // Generates plugin.yml
+    id("com.github.johnrengelman.shadow") version "7.1.2"
 }
 
 java {
@@ -32,6 +33,11 @@ tasks {
     dependsOn(reobfJar)
   }
 
+  shadowJar {
+    dependencies {
+      include(dependency("com.eatthepath:jvptree:0.3.0"))
+    }
+  }
   compileJava {
     options.encoding = Charsets.UTF_8.name() // We want UTF-8 for everything
 
@@ -51,7 +57,27 @@ tasks {
 
 // Configure plugin.yml generation
 bukkit {
+  name = "RailSwitch"
   main = "sh.okx.railswitch.RailSwitchPlugin"
   apiVersion = "1.19"
-  authors = listOf("Author")
+  authors = listOf("Okx", "Protonull", "cgsdev0")
+
+  commands {
+    register("dest") {
+        description = "This is a test command!"
+        usage = "Just run the command!"
+    }
+    register("destadd") {
+        description = "This is a test command!"
+        usage = "Just run the command!"
+    }
+    register("destdel") {
+        description = "This is a test command!"
+        usage = "Just run the command!"
+    }
+    register("destbanner") {
+        description = "This is a test command!"
+        usage = "Just run the command!"
+    }
+  }
 }

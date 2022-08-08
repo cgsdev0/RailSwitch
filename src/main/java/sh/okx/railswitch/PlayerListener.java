@@ -44,6 +44,8 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Vector;
+import org.dynmap.markers.MarkerSet;
+
 import com.eatthepath.jvptree.*;
 
 public class PlayerListener implements Listener {
@@ -68,6 +70,9 @@ public class PlayerListener implements Listener {
       public Location changedAtLoc;
       public Intersection nearestIntersection;
 
+      public void setNearest(Intersection i) {
+        this.nearestIntersection = i;
+      }
       public void reset() {
         current = Heading.NONE;
         pending = Heading.NONE;
@@ -87,7 +92,7 @@ public class PlayerListener implements Listener {
           List<Intersection> nearby = vpTree.getNearestNeighbors(l, 1);
           if (nearby != null && nearby.size() > 0 && nearby.get(0).distance(l) < 10) {
             if (nearestIntersection != null && !nearestIntersection.equals(nearby.get(0))) {
-              makeConnection(nearestIntersection.uuid, nearby.get(0).uuid);
+              makeConnection(nearestIntersection, nearby.get(0));
             }
             nearestIntersection = nearby.get(0);
           }
@@ -124,21 +129,23 @@ public class PlayerListener implements Listener {
 
     Map<UUID, Map<UUID, String>> connections = new HashMap<>();
 
-    private void makeConnection(UUID from, UUID to) {
+    private void makeConnection(Intersection from, Intersection to) {
       // Deterministic ordering
-      if (from.compareTo(to) < 0) {
-        UUID temp = from;
+      if (from.uuid.compareTo(to.uuid) < 0) {
+        Intersection temp = from;
         from = to;
         to = temp;
       }
-      Map<UUID, String> connectedFrom = connections.get(from);
+      Map<UUID, String> connectedFrom = connections.get(from.uuid);
       if (connectedFrom == null) {
         connectedFrom = new HashMap<UUID, String>();
-        connections.put(from, connectedFrom);
+        connections.put(from.uuid, connectedFrom);
       }
-      if (!connectedFrom.containsKey(to)) {
-        connectedFrom.put(to, "default");
-        Bukkit.getConsoleSender().sendMessage(ChatColor.AQUA + "NEW CONN FROM " + from.toString() + " to " + to.toString());
+      if (!connectedFrom.containsKey(to.uuid)) {
+        connectedFrom.put(to.uuid, "default");
+        MarkerSet mSet = plugin.getDynmapAPI().getMarkerAPI().getMarkerSet("railswitch2");
+        mSet.createPolyLineMarker(from.uuid.toString() + to.uuid.toString(), from.uuid + " -> " + to.uuid, false, from.getWorld().getName(), new double[]{from.getX(), to.getX()}, new double[]{from.getY(), to.getY()}, new double[]{from.getZ(), to.getZ()}, true);
+        Bukkit.getConsoleSender().sendMessage(ChatColor.AQUA + "NEW CONN FROM " + from.uuid.toString() + " to " + to.uuid.toString());
       }
       else {
         Bukkit.getConsoleSender().sendMessage(ChatColor.DARK_RED + "conn already exists");
@@ -158,20 +165,32 @@ public class PlayerListener implements Listener {
         super(null, 0, 0, 0);
       }
 
-      public Intersection(Location l) {
-        super(l.getWorld(), l.getX(), l.getY(), l.getZ());
+      public Intersection(Location l, Location snap) {
+        super(l.getWorld(), 
+            (snap != null && Math.abs(snap.getX() - l.getX()) <= 5) ? snap.getX() : l.getX(), 
+            (snap != null && Math.abs(snap.getY() - l.getY()) <= 5) ? snap.getY() : l.getY(), 
+            (snap != null && Math.abs(snap.getZ() - l.getZ()) <= 5) ? snap.getZ() : l.getZ()
+            );
       }
     };
 private VPTree<Location, Intersection> vpTree =
         new VPTree<Location, Intersection>(new LocationDistFunc());
-    private void addIntersection(Location loc) {
+    private Intersection addIntersection(RiderState state, Location loc) {
       List<Intersection> nearby = vpTree.getNearestNeighbors(loc, 1);
       if (nearby == null || nearby.size() == 0 || nearby.get(0).distance(loc) > 10) {
         Bukkit.getConsoleSender().sendMessage(ChatColor.GREEN + "DETECTED NEW INTERSECTION AT: " + loc.toString());
-        vpTree.add(new Intersection(loc));
+        Intersection i = new Intersection(loc, state.nearestIntersection);
+        vpTree.add(i);
+        MarkerSet mSet = plugin.getDynmapAPI().getMarkerAPI().getMarkerSet("railswitch");
+        mSet.createMarker(i.uuid.toString(), i.uuid.toString(), i.getWorld().getName(), i.getX(), i.getY(), i.getZ(), mSet.getDefaultMarkerIcon(), true);
+        if (state.nearestIntersection != null) {
+          makeConnection(state.nearestIntersection, i);
+        }
+        return i;
       } else {
         Bukkit.getConsoleSender().sendMessage(ChatColor.GOLD + "DETECTED EXISTING INTERSECTION AT: " + nearby.get(0).toString());
       }
+      return null;
     }
 
     @EventHandler
@@ -217,7 +236,8 @@ private VPTree<Location, Intersection> vpTree =
         Location appliedAt = state.apply();
         if (isIntersection) {
           // This is probably an intersection!
-          addIntersection(appliedAt);
+          Intersection i = addIntersection(state, appliedAt);
+          state.setNearest(i);
         }
       }
     }

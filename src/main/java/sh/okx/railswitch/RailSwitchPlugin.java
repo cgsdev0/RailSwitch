@@ -11,6 +11,9 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.dynmap.DynmapCommonAPI;
+import org.dynmap.markers.Marker;
+import org.dynmap.markers.MarkerSet;
+import org.dynmap.markers.PolyLineMarker;
 
 import sh.okx.railswitch.switches.SwitchListener;
 import com.google.common.base.CharMatcher;
@@ -146,6 +149,17 @@ public final class RailSwitchPlugin extends JavaPlugin implements Listener {
           return;
         }
         dynmap = (DynmapCommonAPI) dynmapPl; /* Get API */
+        dynmap.getMarkerAPI().createMarkerSet("railswitch", "Rail Debug", null, true);
+        MarkerSet mSet = dynmap.getMarkerAPI().getMarkerSet("railswitch");
+        mSet.setHideByDefault(true);
+        for(Marker m : mSet.getMarkers()) {
+          m.deleteMarker();
+        }
+        dynmap.getMarkerAPI().createMarkerSet("railswitch2", "Rail Lines", null, true);
+        MarkerSet mSet2 = dynmap.getMarkerAPI().getMarkerSet("railswitch2");
+        for(PolyLineMarker m : mSet2.getPolyLineMarkers()) {
+          m.deleteMarker();
+        }
     }
 
     @Override
