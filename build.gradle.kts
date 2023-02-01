@@ -62,6 +62,7 @@ bukkit {
   apiVersion = "1.19"
   authors = listOf("Okx", "Protonull", "cgsdev0")
 
+  depend = listOf("dynmap")
   commands {
     register("dest") {
         description = "This is a test command!"
