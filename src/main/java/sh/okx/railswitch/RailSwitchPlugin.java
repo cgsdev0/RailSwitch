@@ -111,6 +111,15 @@ public final class RailSwitchPlugin extends JavaPlugin implements Listener {
     public String getDestination(Player p) {
         return playerDestinations.get(p.getUniqueId());
     }
+    
+    public Location getDestinationLocation(String dest) {
+      if (!isValidDestination(dest)) return null;
+      if (!allDestinations.containsKey(dest)) return null;
+      Object o = allDestinations.get(dest);
+      if (!(o instanceof Location)) return null;
+      if (((Location)o).getWorld() == null) return null;
+      return (Location)o;
+    }
 
     public boolean isValidDestination(String message) {
         // Each destination must be at most 15 characters.
@@ -130,8 +139,9 @@ public final class RailSwitchPlugin extends JavaPlugin implements Listener {
     public void onEnable() {
         super.onEnable();
         playerDestinations = new HashMap<>();
+        PlayerListener listener = new PlayerListener(this);
         this.getServer().getPluginManager().registerEvents(new SwitchListener(this), this);
-        this.getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
+        this.getServer().getPluginManager().registerEvents(listener, this);
         this.getCommand("dest").setExecutor(new SetDestinationCommand(this));
         this.getCommand("dest").setTabCompleter(new DestTabCompleter(this));
         this.getCommand("destadd").setExecutor(new AddDestinationCommand(this));
@@ -140,6 +150,7 @@ public final class RailSwitchPlugin extends JavaPlugin implements Listener {
         this.getCommand("destbanner").setExecutor(new DestinationBannerCommand(this));
         this.getCommand("destbanner").setTabCompleter(new DestTabCompleter(this));
         this.createCustomConfig();
+        listener.considerExistingDestinations(this.allDestinations);
         Bukkit.addRecipe(new CraftableRailBook().getRecipe());
         this.getLogger().info("RailSwitch is now enabled!");
         PluginManager pm = getServer().getPluginManager();
