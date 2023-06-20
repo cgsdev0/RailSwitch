@@ -22,7 +22,7 @@ repositories {
 }
 dependencies {
   compileOnly("us.dynmap:DynmapCoreAPI:3.3")
-  paperDevBundle("1.19.2-R0.1-SNAPSHOT")
+  paperDevBundle("1.20-R0.1-SNAPSHOT")
   implementation("com.eatthepath:jvptree:0.3.0")
 }
 

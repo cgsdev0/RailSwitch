@@ -300,7 +300,7 @@ public class PlayerListener implements Listener {
 
     while (!queue.isEmpty()) {
       Intersection current = queue.stream().min((a, b) -> (int) (a.dist - b.dist)).get();
-      
+
       queue.remove(current);
       Map<UUID, Long> connectionsFrom = connections.get(current.uuid);
       if (connectionsFrom == null)
@@ -338,7 +338,7 @@ public class PlayerListener implements Listener {
 
     List<Intersection> potentialStartPoints = this.vpTree.getNearestNeighbors(loc, 1);
     Intersection potentialStartPoint = null;
-    if (!potentialStartPoints.isEmpty()) {
+    if (potentialStartPoints != null && !potentialStartPoints.isEmpty()) {
       potentialStartPoint = potentialStartPoints.get(0);
     }
 
@@ -408,6 +408,7 @@ public class PlayerListener implements Listener {
     book.addPages(builder.build());
 
     builder = Component.text().append(Component.text("Building Guide\n----------------\n\n"));
+    builder.append(Component.text("These blocks can be placed underneath tracks to modify cart behavior.\n\n"));
     builder.append(Component.text("Modifiers:\n"));
     builder.append(Component.text("- ").append(Component.text("Gold", NamedTextColor.GOLD)).append(Component.text(": Speed boost\n")));
     builder.append(Component.text("- ").append(Component.text("Copper", NamedTextColor.GREEN)).append(Component.text(": Slowdown\n")));
